@@ -1,0 +1,96 @@
+//@version=5
+indicator("OHLC Levels (3M / Weekly / Daily Toggle)", overlay=true, max_lines_count=500)
+
+// ─────────── User Options ───────────
+showMonthly = input.bool(true, "Show Monthly Levels (last 3 months)")
+showWeekly  = input.bool(true, "Show Weekly Levels (last 12 weeks)")
+showDaily   = input.bool(true, "Show Daily Levels (last 22 days)")
+
+// ─────────── Monthly OHLC ───────────
+monthlyOpen  = request.security(syminfo.tickerid, "M", open)
+monthlyHigh  = request.security(syminfo.tickerid, "M", high)
+monthlyLow   = request.security(syminfo.tickerid, "M", low)
+monthlyClose = request.security(syminfo.tickerid, "M", close)
+
+// ─────────── Weekly OHLC ───────────
+weeklyOpen  = request.security(syminfo.tickerid, "W", open)
+weeklyHigh  = request.security(syminfo.tickerid, "W", high)
+weeklyLow   = request.security(syminfo.tickerid, "W", low)
+weeklyClose = request.security(syminfo.tickerid, "W", close)
+
+// ─────────── Daily OHLC ───────────
+dailyOpen  = request.security(syminfo.tickerid, "D", open)
+dailyHigh  = request.security(syminfo.tickerid, "D", high)
+dailyLow   = request.security(syminfo.tickerid, "D", low)
+dailyClose = request.security(syminfo.tickerid, "D", close)
+
+// ─────────── Storage ───────────
+var float[] m_open  = array.new_float(3, na)
+var float[] m_high  = array.new_float(3, na)
+var float[] m_low   = array.new_float(3, na)
+var float[] m_close = array.new_float(3, na)
+var line[]  m_lines = array.new_line(12)
+
+var line[] w_lines = array.new_line(0)
+var line[] d_lines = array.new_line(0)
+
+// ─────────── Initialize Monthly Lines ───────────
+if barstate.isfirst
+    for i = 0 to 11
+        array.set(m_lines, i, line.new(bar_index, na, bar_index, na, extend=extend.right))
+
+// ─────────── Monthly Update ───────────
+if ta.change(time("M"))
+    array.unshift(m_open,  monthlyOpen)
+    array.unshift(m_high,  monthlyHigh)
+    array.unshift(m_low,   monthlyLow)
+    array.unshift(m_close, monthlyClose)
+    
+    array.pop(m_open)
+    array.pop(m_high)
+    array.pop(m_low)
+    array.pop(m_close)
+
+// ─────────── Draw Monthly ───────────
+// ─────────── Draw Monthly ───────────
+if showMonthly
+    for i = 0 to 2
+        if not na(array.get(m_open, i))
+            c = i == 0 ? color.red : i == 1 ? color.green : color.blue
+            lvls = array.from(array.get(m_open, i), array.get(m_high, i), array.get(m_low, i), array.get(m_close, i))
+            for j = 0 to 3
+                idx = i * 4 + j
+                y   = array.get(lvls, j)
+                line.set_xy1(array.get(m_lines, idx), bar_index, y)
+                line.set_xy2(array.get(m_lines, idx), bar_index + 1, y)  
+                line.set_extend(array.get(m_lines, idx), extend.both)   // extend left and right
+                line.set_color(array.get(m_lines, idx), c)
+
+else
+    for i = 0 to array.size(m_lines) - 1
+        line.set_xy1(array.get(m_lines, i), na, na)
+        line.set_xy2(array.get(m_lines, i), na, na)
+
+// ─────────── Weekly Lines ───────────
+if ta.change(time("W")) and showWeekly
+    if array.size(w_lines) >= 48
+        for _ = 0 to 3
+            line.delete(array.shift(w_lines))
+
+    c = color.new(color.blue, 30)
+    array.push(w_lines, line.new(bar_index, weeklyOpen,  bar_index + 1, weeklyOpen,  color=c, extend=extend.right))
+    array.push(w_lines, line.new(bar_index, weeklyHigh,  bar_index + 1, weeklyHigh,  color=c, extend=extend.right))
+    array.push(w_lines, line.new(bar_index, weeklyLow,   bar_index + 1, weeklyLow,   color=c, extend=extend.right))
+    array.push(w_lines, line.new(bar_index, weeklyClose, bar_index + 1, weeklyClose, color=c, extend=extend.right))
+
+// ─────────── Daily Lines ───────────
+if ta.change(time("D")) and showDaily
+    if array.size(d_lines) >= 88
+        for _ = 0 to 3
+            line.delete(array.shift(d_lines))
+
+    c = color.new(color.gray, 30)  // darker for better visibility
+    array.push(d_lines, line.new(bar_index, dailyOpen,  bar_index + 1, dailyOpen,  color=c, extend=extend.both))
+    array.push(d_lines, line.new(bar_index, dailyHigh,  bar_index + 1, dailyHigh,  color=c, extend=extend.both))
+    array.push(d_lines, line.new(bar_index, dailyLow,   bar_index + 1, dailyLow,   color=c, extend=extend.both))
+    array.push(d_lines, line.new(bar_index, dailyClose, bar_index + 1, dailyClose, color=c, extend=extend.both))
